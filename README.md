@@ -15,7 +15,7 @@ By hedging your bets across these two platforms' differing markets, you **guaran
 
 ### Current Progress
 The project is currently in **Stage 1**:
-- API responses are handled.
+- API responses are handled (output templates for each API are also included above the kalshii.py and polymarket.py files)
 - Outputs from each website are formatted to match.  
 - The main algorithm identifies viable arbitrage opportunities.
 
