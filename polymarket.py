@@ -92,7 +92,6 @@ def fetch_polymarket_events():
     events = response.json()
     if not isinstance(events, list):
         raise ValueError(f"Unexpected response format: {type(events)}")
-    # print(f"Fetched events: {events}")
     return events
 
 def transform_data(events):
