@@ -1,5 +1,4 @@
-## KALSHII API OUTPUT EXAMPLE ##
-
+## KALSHI API OUTPUT EXAMPLE ##
 
 #'event_title': 'How much solar capacity will be installed in the US this year?'
 #'event_subtitle': 'In 2025'
@@ -45,7 +44,7 @@ def transform_data(events):
             for event in events
             for market in event.get('markets', [])
         ]
-        print(f"Flattened Events: {flattened_events}")
+        # DEBUG PRINT #  print(f"Flattened Events: {flattened_events}")
 
         # Consolidating duplicates by event_title and event_subtitle
         grouped_events = {}
@@ -92,8 +91,9 @@ def transform_data(events):
             ])
         )
         
-        print("KALSHI")
-        print(selected_data)
+        ## DEBUG PRINT 
+        # print("KALSHI")
+        # print(selected_data)
         return selected_data
 
     except Exception as e:

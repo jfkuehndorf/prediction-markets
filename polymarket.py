@@ -109,7 +109,7 @@ def transform_data(events):
                 'slug': event.get('slug', '')
             }
             for event in events
-            for market in event.get('markets', [])  # Default to empty list if 'markets' is missing
+            for market in event.get('markets', [])
         ]
         # DEBUG PRINT # print(f"Flattened Events: {flattened_events}") # DEBUG PRINT
 
@@ -178,8 +178,9 @@ def transform_data(events):
             ])
         )
 
-        print("POLYMARKET")
-        print(selected_data)
+        # DEBUG PRINT
+        # print("POLYMARKET")
+        # print(selected_data)
         return selected_data
 
     except Exception as e:

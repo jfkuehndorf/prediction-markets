@@ -21,7 +21,7 @@ def compare_events(similarity_threshold: int = 75, sort_by_similarity: bool = Tr
     # Extract and preprocess titles into lists
     kalshi_titles = kalshi_events['title'].to_list()
     poly_titles = polymarket_events['title'].to_list()
-
+    
     matches = []
     for k_idx, kalshi_title in enumerate(kalshi_titles):
         for p_idx, poly_title in enumerate(poly_titles):
