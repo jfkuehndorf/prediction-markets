@@ -1,3 +1,22 @@
+## KALSHII API OUTPUT EXAMPLE ##
+
+
+#'event_title': 'How much solar capacity will be installed in the US this year?'
+#'event_subtitle': 'In 2025'
+# 'ticker': 'KXSOLAR-25-50'
+# 'yes_subtitle': 'At least 50 GWdc'
+# 'no_subtitle': ''
+# 'yes_bid': 11
+# 'yes_ask': 20
+# 'last_price': 11
+# 'price_delta': 0
+# 'close_ts':'2026-03-31T15:00:00Z'
+# 'open_ts': '2024-12-20T15:00:00Z'
+# 'rulebook_variables': {}
+# 'result': ''}
+
+
+
 import requests
 import polars as pl
 import json
@@ -26,7 +45,8 @@ def transform_data(events):
             for event in events
             for market in event.get('markets', [])
         ]
-        
+        print(f"Flattened Events: {flattened_events}")
+
         # Consolidating duplicates by event_title and event_subtitle
         grouped_events = {}
         for event in flattened_events:
