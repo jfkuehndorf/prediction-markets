@@ -6,8 +6,8 @@ from typing import List, Dict, Optional
 
 def compare_events(similarity_threshold: int = 75, sort_by_similarity: bool = True):
     # Fetch event data
-    kalshi_events = get_kalshi_events()  # Fetch and transform Kalshi events.
-    polymarket_events = get_polymarket_events()  # Fetch and transform Polymarket events.
+    kalshi_events = get_kalshi_events()
+    polymarket_events = get_polymarket_events()
 
     # Check if dataframes contain valid data
     if kalshi_events.is_empty() or polymarket_events.is_empty():
@@ -27,12 +27,13 @@ def compare_events(similarity_threshold: int = 75, sort_by_similarity: bool = Tr
         for p_idx, poly_title in enumerate(poly_titles):
             similarity_score = fuzz.ratio(kalshi_title.lower(), poly_title.lower())
             if similarity_score >= similarity_threshold:
-                matches.append({
-                    "kalshi_title": kalshi_title,
-                    "poly_title": poly_title,
-                    "similarity_score": similarity_score,
-                    "kalshi_index": k_idx,
-                    "poly_index": p_idx,
+                if len(kalshi_events['outcomes']) <= 2 and len(polymarket_events['outcomes']) <= 2: # Checking if options are the same length, if not will not add to matches
+                    matches.append({
+                        "kalshi_title": kalshi_title,
+                        "poly_title": poly_title,
+                        "similarity_score": similarity_score,
+                        "kalshi_index": k_idx,
+                        "poly_index": p_idx,
                 })
 
     # Debug: Print all matches before sorting
@@ -152,4 +153,5 @@ def find_arbitrage(similarity_threshold: int = 75):
 
 # Example usage
 if __name__ == "__main__":
+    # get_kalshi_events()
     find_arbitrage(similarity_threshold=80)
