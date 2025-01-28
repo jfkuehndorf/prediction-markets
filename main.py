@@ -2,193 +2,110 @@ from polymarket import get_polymarket_events
 from kalshi import get_kalshi_events
 from rapidfuzz import fuzz
 import polars as pl
-from typing import List, Dict, Optional
 
-def compare_events(similarity_threshold: int = 75, sort_by_similarity: bool = True):
-    # Fetch event data
+def find_arbitrage(similarity_threshold: int = 75, min_profit: float = 2.0, min_time: int = 0):
+    """Find arbitrage opportunities by comparing Kalshi & Polymarket event lines."""
+
+    # Fetch events from both sources
     kalshi_events = get_kalshi_events()
     polymarket_events = get_polymarket_events()
 
-    # Check if dataframes contain valid data
     if kalshi_events.is_empty() or polymarket_events.is_empty():
-        print("One or both datasets are empty. No events to compare.")
-        return []
+        print("No events found in one or both datasets.")
+        return
 
-    # Validate the presence of the 'title' column
     if 'title' not in kalshi_events.columns or 'title' not in polymarket_events.columns:
-        raise ValueError("Both Kalshi and Polymarket data must contain a 'title' column.")
+        raise ValueError("Missing 'title' column in one of the datasets.")
 
-    # Extract and preprocess titles into lists
     kalshi_titles = kalshi_events['title'].to_list()
     poly_titles = polymarket_events['title'].to_list()
-    
+
     matches = []
     for k_idx, kalshi_title in enumerate(kalshi_titles):
         for p_idx, poly_title in enumerate(poly_titles):
             similarity_score = fuzz.ratio(kalshi_title.lower(), poly_title.lower())
+
             if similarity_score >= similarity_threshold:
-                kalshi_outcomes = kalshi_events['outcomes'][k_idx]
-                poly_outcomes = polymarket_events['outcomes'][p_idx]
-                print(f"Kalshi event outcomes: {kalshi_outcomes} Poly Event outcomes: {poly_outcomes}")
-                print(f"Kalshi outcomes length: {len(kalshi_outcomes)}, Polymarket outcomes length: {len(poly_outcomes)}")
+                kalshi_market = kalshi_events.to_dicts()[k_idx]
+                poly_market = polymarket_events.to_dicts()[p_idx]
 
-                if len(kalshi_events['outcomes']) == len(polymarket_events['outcomes']): # Checking if options are the same length, if not will not add to matches
-                    print(f"Match found: {kalshi_title} (Kalshi) <-> {poly_title} (Polymarket) with similarity score: {similarity_score}")
+                kalshi_outcomes = kalshi_market.get("outcomes", [])
+                poly_outcomes = poly_market.get("outcomes", [])
 
-                    matches.append({
-                        "kalshi_title": kalshi_title,
-                        "poly_title": poly_title,
-                        "similarity_score": similarity_score,
-                        "kalshi_index": k_idx,
-                        "poly_index": p_idx,
-                })
+                if not isinstance(kalshi_outcomes, list) or not isinstance(poly_outcomes, list):
+                    continue
 
-    # Debug: Print all matches before sorting
-    print("\n[DEBUG] Matches Before Sorting:")
-    for match in matches:
-        print(match)
+                event_time_remaining = kalshi_market.get("time_remaining", 9999)
+                if event_time_remaining < min_time:
+                    continue
 
-    if sort_by_similarity:
-        matches.sort(key=lambda x: x["similarity_score"], reverse=True)
+                for k_outcome in kalshi_outcomes:
+                    for p_outcome in poly_outcomes:
+                        k_label = next((k for k in k_outcome.keys() if isinstance(k_outcome[k], str)), None)
+                        p_label = next((p for p in p_outcome.keys() if isinstance(p_outcome[p], str)), None)
 
-    # Debug: Print all matches after sorting
-    print("\n[DEBUG] Matches After Sorting:")
-    for match in matches:
-        print(match)
+                        if not k_label or not p_label:
+                            continue
 
-    return matches
+                        outcome_similarity = fuzz.ratio(k_outcome[k_label].lower(), p_outcome[p_label].lower())
 
+                        if outcome_similarity >= similarity_threshold:
+                            k_yes_ask = next((k_outcome[key] for key in k_outcome.keys() if isinstance(k_outcome[key], (int, float))), None)
+                            k_no_bid = 100 - k_yes_ask if k_yes_ask is not None else None
 
+                            p_yes_ask = next((p_outcome[key] for key in p_outcome.keys() if isinstance(p_outcome[key], (int, float))), None)
+                            p_no_bid = 100 - p_yes_ask if p_yes_ask is not None else None
 
-def check_arbitrage(market1: Dict, market2: Dict) -> Optional[Dict]:
-    """
-    Check for arbitrage opportunities between two prediction markets.
+                            # Check arbitrage (YES on one site, NO on the other)
+                            if k_yes_ask is not None and p_no_bid is not None and k_yes_ask < p_no_bid:
+                                yes_stake = 100 / k_yes_ask  # Stake needed to win $100 on YES
+                                no_stake = 100 / p_no_bid    # Stake needed to win $100 on NO
+                                total_cost = yes_stake + no_stake
+                                profit = 100 - total_cost
+                                profit_percentage = (profit / total_cost) * 100
 
-    Args:
-        market1: First market data (Kalshi-style format).
-        market2: Second market data (Polymarket-style format).
+                                if profit_percentage >= min_profit:
+                                    print(f"\n** Arbitrage Opportunity Found! **")
+                                    print(f"Event: {kalshi_title} / {poly_title}")
+                                    print(f"** Matched Outcome: {k_outcome[k_label]} <-> {p_outcome[p_label]} (Similarity: {outcome_similarity}%)")
+                                    print(f"✅ Buy YES on Kalshi at {k_yes_ask}% (Stake ${yes_stake:.2f})")
+                                    print(f"🚫 Buy NO on Polymarket at {p_no_bid}% (Stake ${no_stake:.2f})")
+                                    print(f"** Expected Profit: ${profit:.2f} ({profit_percentage:.2f}%) **")
+                                    print("-" * 50)
 
-    Returns:
-        Dictionary containing arbitrage opportunity details if found, None otherwise.
-    """
-    try:
-        # Safely extract prices from Market 1 (Kalshi)
-        m1_yes_bid = market1.get('yes_bid')
-        m1_yes_ask = market1.get('yes_ask')
-        m1_no_bid = 100 - m1_yes_ask if m1_yes_ask is not None else None
-        m1_no_ask = 100 - m1_yes_bid if m1_yes_bid is not None else None
+                            elif p_yes_ask is not None and k_no_bid is not None and p_yes_ask < k_no_bid:
+                                yes_stake = 100 / p_yes_ask  # Stake needed to win $100 on YES
+                                no_stake = 100 / k_no_bid    # Stake needed to win $100 on NO
+                                total_cost = yes_stake + no_stake
+                                profit = 100 - total_cost
+                                profit_percentage = (profit / total_cost) * 100
 
-        # Safely extract prices from Market 2 (Polymarket)
-        m2_yes_ask = market2.get('bestAsk')  # Prices are in decimal form (0-1).
-        m2_yes_bid = market2.get('bestBid')
+                                if profit_percentage >= min_profit:
+                                    print(f"\n** Arbitrage Opportunity Found! **")
+                                    print(f"Event: {kalshi_title} / {poly_title}")
+                                    print(f"** Matched Outcome: {k_outcome[k_label]} <-> {p_outcome[p_label]} (Similarity: {outcome_similarity}%)")
+                                    print(f"✅ Buy YES on Polymarket at {p_yes_ask}% (Stake ${yes_stake:.2f})")
+                                    print(f"🚫 Buy NO on Kalshi at {k_no_bid}% (Stake ${no_stake:.2f})")
+                                    print(f"** Expected Profit: ${profit:.2f} ({profit_percentage:.2f}%) **")
+                                    print("-" * 50)
 
-        arbitrage_opportunities = []
+                            matches.append({
+                                "kalshi_title": kalshi_title,
+                                "poly_title": poly_title,
+                                "matched_outcome": k_outcome[k_label],
+                                "event_similarity": similarity_score,
+                                "outcome_similarity": outcome_similarity,
+                                "kalshi_yes_ask": k_yes_ask,
+                                "kalshi_no_bid": k_no_bid,
+                                "polymarket_yes_ask": p_yes_ask,
+                                "polymarket_no_bid": p_no_bid,
+                                "profit": profit,
+                                "profit_percentage": profit_percentage,
+                                "time_remaining": event_time_remaining
+                            })
 
-        # Yes in Market1 vs No in Market2
-        if m1_yes_bid is not None and m2_yes_ask is not None:
-            if m1_yes_bid > m2_yes_ask * 100:
-                arbitrage_opportunities.append({
-                    'type': 'Yes-No',
-                    'buy_market': 'Polymarket',
-                    'sell_market': 'Kalshi',
-                    'buy_price': m2_yes_ask,
-                    'sell_price': m1_yes_bid / 100,
-                    'profit_percentage': m1_yes_bid - (m2_yes_ask * 100)
-                })
+    if not matches:
+        print("No arbitrage opportunities found.")
 
-        # No in Market1 vs Yes in Market2
-        if m1_no_bid is not None and m2_yes_ask is not None:
-            if m1_no_bid > (1 - m2_yes_ask) * 100:
-                arbitrage_opportunities.append({
-                    'type': 'No-Yes',
-                    'buy_market': 'Polymarket',
-                    'sell_market': 'Kalshi',
-                    'buy_price': m2_yes_ask,
-                    'sell_price': m1_no_bid / 100,
-                    'profit_percentage': m1_no_bid - ((1 - m2_yes_ask) * 100)
-                })
-
-        # Return the most profitable arbitrage opportunity, if any
-        if arbitrage_opportunities:
-            return max(arbitrage_opportunities, key=lambda x: x['profit_percentage'])
-
-        return None  # No arbitrage opportunities found.
-
-    except Exception as e:
-        raise ValueError(f"Error checking arbitrage: {e}")
-
-
-
-
-def find_arbitrage(similarity_threshold: int = 75):
-    # Fetch Kalshi and Polymarket events
-    kalshi_events = get_kalshi_events()
-    polymarket_events = get_polymarket_events()
-
-    # Check if either dataset is empty
-    if kalshi_events.is_empty() or polymarket_events.is_empty():
-        print("One or both datasets are empty. No arbitrage opportunities.")
-        return
-
-    # Find event matches based on similarity
-    matches = compare_events(similarity_threshold=similarity_threshold)
-
-    print("\nChecking for arbitrage opportunities...\n")
-
-    for match in matches:
-        kalshi_title = match['kalshi_title']
-        poly_title = match['poly_title']
-        kalshi_index = match['kalshi_index']
-        poly_index = match['poly_index']
-
-        # Extract event data from both datasets
-        kalshi_market = kalshi_events.to_dicts()[kalshi_index]
-        poly_market = polymarket_events.to_dicts()[poly_index]
-
-        kalshi_outcomes = kalshi_market.get("outcomes", [])
-        poly_outcomes = poly_market.get("outcomes", [])
-
-        print(f"\n[DEBUG] Kalshi Outcomes: {kalshi_outcomes}")
-        print(f"[DEBUG] Polymarket Outcomes: {poly_outcomes}")
-        
-        if not kalshi_outcomes or not poly_outcomes:
-            print(f"[DEBUG] Skipping {kalshi_title} due to empty outcomes.")
-            continue  # Skip if no valid outcomes
-
-        # Match individual outcomes between Kalshi and Polymarket using fuzzy matching
-        for k_outcome in kalshi_outcomes:
-            k_option = k_outcome["option"]
-            k_yes_ask = k_outcome["yes_ask"]
-            print(f"\n[DEBUG] Checking Kalshi Outcome: {k_outcome}")
-
-            for p_outcome in poly_outcomes:
-                p_option = p_outcome["option"]
-                p_yes_ask = p_outcome["yes_ask"]
-                print(f"[DEBUG] Checking Polymarket Outcome: {p_outcome}")
-
-                similarity = fuzz.ratio(k_option.lower(), p_option.lower())
-                print(f"[DEBUG] Similarity Score: {similarity} for {k_option} vs {p_option}")
-
-                if similarity >= similarity_threshold:
-                    print(f"\n🎯 **Arbitrage Opportunity Found!**")
-                    print(f"**Event:** {kalshi_title} / {poly_title}")
-                    print(f"**Outcome Match:** {k_option} <-> {p_option} (Similarity: {similarity}%)")
-                    print(f"**Kalshi Yes Ask:** {k_yes_ask}%")
-                    print(f"**Polymarket Yes Ask:** {p_yes_ask}%")
-
-                    # Check for arbitrage (probability mismatch)
-                    if k_yes_ask > p_yes_ask:
-                        print(f"💰 **Buy on Polymarket at {p_yes_ask}%, Sell on Kalshi at {k_yes_ask}%**")
-                    elif p_yes_ask > k_yes_ask:
-                        print(f"💰 **Buy on Kalshi at {k_yes_ask}%, Sell on Polymarket at {p_yes_ask}%**")
-
-                    print("-" * 50)
-
-
-
-
-
-# Example usage
 if __name__ == "__main__":
-    # get_kalshi_events()
-    find_arbitrage(similarity_threshold=80)
+    find_arbitrage(similarity_threshold=80, min_profit=3.0, min_time=24)
