@@ -27,7 +27,14 @@ def compare_events(similarity_threshold: int = 75, sort_by_similarity: bool = Tr
         for p_idx, poly_title in enumerate(poly_titles):
             similarity_score = fuzz.ratio(kalshi_title.lower(), poly_title.lower())
             if similarity_score >= similarity_threshold:
-                if len(kalshi_events['outcomes']) <= 2 and len(polymarket_events['outcomes']) <= 2: # Checking if options are the same length, if not will not add to matches
+                kalshi_outcomes = kalshi_events['outcomes'][k_idx]
+                poly_outcomes = polymarket_events['outcomes'][p_idx]
+                print(f"Kalshi event outcomes: {kalshi_outcomes} Poly Event outcomes: {poly_outcomes}")
+                print(f"Kalshi outcomes length: {len(kalshi_outcomes)}, Polymarket outcomes length: {len(poly_outcomes)}")
+
+                if len(kalshi_events['outcomes']) == len(polymarket_events['outcomes']): # Checking if options are the same length, if not will not add to matches
+                    print(f"Match found: {kalshi_title} (Kalshi) <-> {poly_title} (Polymarket) with similarity score: {similarity_score}")
+
                     matches.append({
                         "kalshi_title": kalshi_title,
                         "poly_title": poly_title,

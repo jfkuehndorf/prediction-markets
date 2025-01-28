@@ -1,16 +1,5 @@
-## POLYMARKET API OUTPUT EXAMPLE ##
+# POLYMARKET API FORMAT EXAMPLE #
 
-# 'market': {'id': '519373', 
-# 'question': 'Solana all time high by June 30?', 
-# 'conditionId': '0x324283263c83e789fc092ed8d3333aa93ecc6ef0ba5479db05bbcb2471c92d01', 
-# 'slug': 'solana-all-time-high-by-june-30', 
-# 'resolutionSource': '', 
-# 'endDate': '2025-06-30T12:00:00Z', 
-# 'liquidity': '16566.4489', 
-# 'startDate': '2025-01-21T18:52:09.491Z', 
-# 'image': 'https://polymarket-upload.s3.us-east-2.amazonaws.com/solana-all-time-high-by-june-30-OOZ6L_3iymmE.jpg', 
-# 'icon': 'https://polymarket-upload.s3.us-east-2.amazonaws.com/solana-all-time-high-by-june-30-OOZ6L_3iymmE.jpg', 
-# 'description': 'This market will resolve to "Yes" if any Binance 1 minute candle for SOLUSDT between 21 Jan \'25 12:00 and 30 Jun \'25 23:59 in the ET timezone has a final “High” price that is higher than any previous Binance 1 minute candle\'s "High" price on any prior date. Otherwise, this market will resolve to "No".\n\nThe resolution source for this market is Binance, specifically the SOLUSDT "High" prices currently available at https://www.binance.com/en/trade/SOL_USDT with “1m” and “Candles” selected on the top bar.\n\nPlease note that this market is about the price according to Binance SOLUSDT, not according to other sources or spot markets.', 
 # 'outcomes': '["Yes", "No"]', 
 # 'outcomePrices': '["0.655", "0.345"]', 
 # 'volume': '6104.492629', 
@@ -75,14 +64,13 @@ import requests
 import json
 
 
-from datetime import datetime
-
 def fetch_polymarket_events():
     url = 'https://gamma-api.polymarket.com/events'
     params = {
         "closed": "false",
         "limit": 1000,
         "liquidity_num_min": 5000,
+        "volume_num_min": 1000
     }
 
     response = requests.get(url, params=params)
@@ -95,78 +83,106 @@ def fetch_polymarket_events():
         raise ValueError(f"Unexpected response format: {type(events)}")
     return events
 
+
 def transform_data(events):
     try:
-        # Flatten events into individual rows
-        flattened_events = [
-            {
-                'title': event.get('title', ''),
-                'description': event.get('description', ''),
-                'startDate': event.get('startDate', None),
-                'endDate': event.get('endDate', None),
-                'market': market,
-                'id': event.get(''),
-                'slug': event.get('slug', '')
-            }
-            for event in events
-            for market in event.get('markets', [])
-        ]
-        # DEBUG PRINT # print(f"Flattened Events: {flattened_events}") # DEBUG PRINT
+        event_dict = {}  # Dictionary to consolidate outcomes under the same title
 
-        # Consolidate outcomes and prices into Kalshi-style 'outcomes' column
-        consolidated_events = []
-        for event in flattened_events:
-            outcomes = event['market'].get('outcomes', [])
-            outcome_prices = event['market'].get('outcomePrices', [])
+        for event in events:
+            for market in event.get('markets', []):
+                title = event.get('title', '')
+                description = event.get('description', '')
+                from datetime import datetime
 
-            # Making sure it counts the length of outcomes and outcome_prices PROPERLY
-            if isinstance(outcomes, str):
-                outcomes = json.loads(outcomes)
-            if isinstance(outcome_prices, str):
-                outcome_prices = json.loads(outcome_prices)
+                def safe_parse_date(date_str):
+                    """ Convert ISO date string to datetime, return None if invalid. """
+                    try:
+                        return datetime.fromisoformat(date_str.replace("Z", "+00:00")) if date_str else None
+                    except ValueError:
+                        return None
 
-            titles = event['market'].get('title', [])
-            ids = event['market'].get('id', [])
-            slugs = event['market'].get('slug', [])
-            # DEBUG PRINT # print(f"Slug: {slugs},Title: {titles}, Outcomes: {outcomes}, Outcome Prices: {outcome_prices}")  # Debug print
+                start_date = safe_parse_date(event.get('startDate'))
+                end_date = safe_parse_date(event.get('endDate'))
 
-            if len(outcomes) != len(outcome_prices):
-                continue
 
-            formatted_outcomes = []
-            for outcome, price in zip(outcomes, outcome_prices):
-                try:
-                    # Format each outcome as Kalshi-style dict
-                    price = float(price) * 100  # Convert to percentage
-                    formatted_outcomes.append({
-                        'subtitle': outcome,
-                        'yes_ask': price,
-                        'no_ask': 100 - price
-                    })
-               
-                except (ValueError, TypeError) as e:
-                    print(f"Skipping invalid price: {price}, Error: {e}")
-                    continue  # Skip invalid prices
-            
-            if not formatted_outcomes:
-                print(f"Skipping event due to no valid formatted outcomes: {event}")
-                continue  # Skip events with no valid formatted outcomes
+                # Parse outcomes and prices
+                outcomes = market.get('outcomes', [])
+                outcome_prices = market.get('outcomePrices', [])
+                specific_name = market.get('groupItemTitle', '')  # Specific name (e.g., "Ariana Grande")
 
-            consolidated_events.append({
-                'title': event['title'],
-                'description': event['description'],
-                'startDate': event['startDate'],
-                'endDate': event['endDate'],
-                'outcomes': formatted_outcomes  # Kalshi-style outcomes
-            })
+                if isinstance(outcomes, str):
+                    outcomes = json.loads(outcomes)
+                if isinstance(outcome_prices, str):
+                    outcome_prices = json.loads(outcome_prices)
 
-        # Create a DataFrame from the reformatted events
+                formatted_outcomes = []
+
+                # If a specific name exists, prioritize it over Yes/No garbage
+                if specific_name and len(outcome_prices) > 0:
+                    try:
+                        price = float(outcome_prices[0]) * 100  # Convert to percentage
+                        formatted_outcomes.append({
+                            "option": specific_name,
+                            "yes_ask": price,
+                            "no_ask": 100 - price
+                        })
+
+                    except (ValueError, TypeError):
+                        pass  # Skip invalid prices
+
+                # If outcomes and prices match in length, add them
+                elif len(outcomes) == len(outcome_prices):
+                    for outcome, price in zip(outcomes, outcome_prices):
+                        try:
+                            price = float(price) * 100  # Convert to percentage
+                            formatted_outcomes.append({
+                                "option": specific_name,
+                                "yes_ask": price,
+                                "no_ask": 100 - price
+                            })
+                        except (ValueError, TypeError):
+                            pass  # Skip invalid prices
+
+                # Filter out cases where any value is null
+                formatted_outcomes = [entry for entry in formatted_outcomes if "" not in entry.values()]
+
+
+                # If no valid outcomes, skip this market
+                if not formatted_outcomes:
+                    continue
+
+                # Consolidate under the same title
+                if title in event_dict:
+                    event_dict[title]['outcomes'].extend(formatted_outcomes)
+                else:
+                    event_dict[title] = {
+                        'title': title,
+                        'description': description,
+                        'startDate': start_date,
+                        'endDate': end_date,
+                        'outcomes': formatted_outcomes
+                    }
+
+        # Convert dictionary to list for DataFrame creation
+        consolidated_events = list(event_dict.values())
+
         if not consolidated_events:
             print("No valid events found.")
-            return pl.DataFrame()  # Return an empty DataFrame if no events
+            return pl.DataFrame()
 
-        df = pl.DataFrame(consolidated_events, strict=False)
+        df = pl.DataFrame(consolidated_events, schema={
+            "title": pl.Utf8,
+            "description": pl.Utf8,
+            "startDate": pl.Datetime("us"),
+            "endDate": pl.Datetime("us"),
+            "outcomes": pl.List(pl.Struct({  # Ensures outcomes match Kalshi's struct format
+                "option": pl.Utf8,
+                "yes_ask": pl.Float64,
+                "no_ask": pl.Float64
+            }))
+        })
 
+        
         # Select relevant columns
         selected_data = (
             df.select([
@@ -178,14 +194,12 @@ def transform_data(events):
             ])
         )
 
-        # DEBUG PRINT
-        # print("POLYMARKET")
-        # print(selected_data)
+        print("POLYMARKET")
+        print(selected_data)
         return selected_data
 
     except Exception as e:
         raise ValueError(f"Error transforming Polymarket data: {e}")
-
 
 
 def get_polymarket_events():
@@ -193,7 +207,7 @@ def get_polymarket_events():
 
     if not events:
         print("No Polymarket events found.")
-        return pl.DataFrame()  # Return an empty DataFrame if no events
+        return pl.DataFrame()
 
     try:
         transformed_events = transform_data(events)
@@ -201,4 +215,6 @@ def get_polymarket_events():
     except Exception as e:
         raise ValueError(f"Error in Polymarket transformation: {e}")
 
+
+# Fetch and transform Polymarket events
 get_polymarket_events()
