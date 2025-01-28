@@ -62,6 +62,7 @@
 import polars as pl
 import requests
 import json
+import datetime
 
 
 def fetch_polymarket_events():
