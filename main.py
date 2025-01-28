@@ -3,7 +3,7 @@ from kalshi import get_kalshi_events
 from rapidfuzz import fuzz
 import polars as pl
 
-def find_arbitrage(similarity_threshold: int = 75, min_profit: float = 2.0, max_endDate: int = "05/03/2025"):
+def find_arbitrage(similarity_threshold: int = 75, min_profit: float = 2.0, max_endDate: str = "05/03/2025"):
     """Find arbitrage opportunities by comparing Kalshi & Polymarket event lines."""
 
     # Fetch events from both sources
