@@ -1,4 +1,5 @@
 <h1 align="center">Welcome To Prediction Markets.git</h1>
+<h3 align="center">The Arbitrage Bet Hedger</h3>
 
 This is a continuation of a [**friend of mine's**](https://github.com/carterbassler) project. The ultimate end-goal is to **fully automate arbitrage hedging**, making it function like a growing stock portfolio where you can keep adding funds and watch it grow.
 
