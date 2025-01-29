@@ -1,6 +1,5 @@
-<h1 align="center">Welcome To Prediction Markets.git</h1>
+<h1 align="center">📈 Welcome To Prediction Markets.git 📈</h1>
 <h3 align="center">The Arbitrage Bet Hedger</h3>
-
 This is a continuation of a [**friend of mine's**](https://github.com/carterbassler) project. The ultimate end-goal is to **fully automate arbitrage hedging**, making it function like a growing stock portfolio where you can keep adding funds and watch it grow.
 
 This project utilizes the APIs of two prediction market services – **Kalshi** and **Polymarket**. Using the [**fuzzywuzzy string-similarity library**](https://pypi.org/project/fuzzywuzzy/), the code identifies similar markets on both platforms and flags opportunities where the odds differ significantly.
