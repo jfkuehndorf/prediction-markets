@@ -69,8 +69,10 @@ def find_arbitrage(similarity_threshold: int = 75, min_profit: float = 2.0, max_
 
                             # CHECKING ARBITRAGE
                             if k_yes_ask is not None and p_no_ask is not None and k_yes_ask < p_no_ask:
-                                yes_stake = stake * (p_no_ask / (k_yes_ask + p_no_ask))
-                                no_stake = stake * (k_yes_ask / (k_yes_ask + p_no_ask))
+                                yes_stake = stake / (1 + (p_no_ask / k_yes_ask))
+                                print(f"Yes Stake: {yes_stake}")
+                                no_stake = stake - yes_stake
+                                print(f"No Stake: {no_stake}")
                                 total_cost = yes_stake + no_stake
                                 print("Calculating Arbitrage Opportunities...")
                                 yes_payout = (yes_stake / (k_yes_ask / 100))  # Total return if YES wins
@@ -83,7 +85,7 @@ def find_arbitrage(similarity_threshold: int = 75, min_profit: float = 2.0, max_
                                 profit_no_wins = no_payout - total_cost
                                 print(f"Profit if NO wins: {profit_no_wins}")
                                 print("")
-                                if min(profit_yes_wins, profit_no_wins) > 0:
+                                if min(profit_yes_wins, profit_no_wins) > -0.01 * stake:  # Allows very close risk-free trades
                                     profit = min(profit_yes_wins, profit_no_wins)
                                     arbitrage_percentage = (profit / total_cost) * 100
                                 else:
@@ -99,11 +101,13 @@ def find_arbitrage(similarity_threshold: int = 75, min_profit: float = 2.0, max_
                                     print(f"✅ Buy YES on Kalshi at {k_yes_ask}% (Stake ${yes_stake:.2f})")
                                     print(f"🚫 Buy NO on Polymarket at {p_no_ask}% (Stake ${no_stake:.2f})")
                                     print(f"** Expected Profit: ${profit:.2f} Arbitrage Percentage: ({arbitrage_percentage:.2f}%) **")
+                                    print(f"Time Remaining: {event_time_remaining} days")
                                     print("-" * 50)
 
                             elif p_yes_ask is not None and k_no_ask is not None and p_yes_ask < k_no_ask:
-                                yes_stake = stake * (p_no_ask / (k_yes_ask + p_no_ask))
-                                no_stake = stake * (k_yes_ask / (k_yes_ask + p_no_ask))
+                                yes_stake = stake / (1 + (p_no_ask / k_yes_ask))
+                                no_stake = stake - yes_stake
+
                                 total_cost = yes_stake + no_stake
 
                                 yes_payout = (yes_stake / (k_yes_ask / 100))  # Total return if YES wins
@@ -112,7 +116,7 @@ def find_arbitrage(similarity_threshold: int = 75, min_profit: float = 2.0, max_
                                 profit_yes_wins = yes_payout - total_cost
                                 profit_no_wins = no_payout - total_cost
 
-                                if min(profit_yes_wins, profit_no_wins) > 0:
+                                if min(profit_yes_wins, profit_no_wins) > -0.01 * stake:  # Allows very close risk-free trades
                                     profit = min(profit_yes_wins, profit_no_wins)
                                     arbitrage_percentage = (profit / total_cost) * 100
                                 else:
@@ -128,6 +132,7 @@ def find_arbitrage(similarity_threshold: int = 75, min_profit: float = 2.0, max_
                                     print(f"✅ Buy YES on Polymarket at {p_yes_ask}% (Stake ${yes_stake:.2f})")
                                     print(f"🚫 Buy NO on Kalshi at {k_no_ask}% (Stake ${no_stake:.2f})")
                                     print(f"** Expected Profit: ${profit:.2f} Arbitrage Percentage: ({arbitrage_percentage:.2f}%) **")
+                                    print(f"Time Remaining: {event_time_remaining} days")
                                     print("-" * 50)
 
                             matches.append({
@@ -149,5 +154,5 @@ def find_arbitrage(similarity_threshold: int = 75, min_profit: float = 2.0, max_
         print("No arbitrage opportunities found.")
 
 if __name__ == "__main__":
-    find_arbitrage(similarity_threshold=80, min_profit=1.0, max_days_left=500,stake=1000)
+    find_arbitrage(similarity_threshold=80, min_profit=1.0, max_days_left=5,stake=100)
  
