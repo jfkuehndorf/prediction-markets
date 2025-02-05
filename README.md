@@ -10,7 +10,7 @@ Say there is a market: **“Do the Eagles Win the Super Bowl?”**
 - On **Polymarket**, the "Yes" odds are 0.59  
 - On **Kalshi**, the "No" odds are 0.54  
 
-By using a formula that minimizes stake cost across these two platforms' differing markets, you can **guarantee** a profit if the cost outweighs the total you staked on either side.
+By using a formula that minimizes stake cost across these two platforms' differing markets, you can **guarantee** a profit if the cost is less than the minimum amount you're set to win if A or B succeeds.
 
 ---
 
